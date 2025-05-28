@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Temu Auto Expand
 // @namespace    http://tampermonkey.net/
-// @version      0.3
-// @description  自动展开Temu产品页面的"See all details"和"See more"按钮，并平滑滚动
+// @version      0.6
+// @description  自动展开Temu产品页面的"See all details"和"See more"按钮，可调节滚动次数
 // @author       YourName
 // @match        https://www.temu.com/*
 // @icon         https://www.google.com/s2/favicons?domain=temu.com
@@ -11,6 +11,13 @@
 
 (function() {
     'use strict';
+
+    // 配置参数
+    const config = {
+        scrollCycles: 2, // 滚动来回次数，可调节
+        scrollDuration: 2000, // 单程滚动时间(毫秒)
+        pauseDuration: 500 // 滚动间停顿时间(毫秒)
+    };
 
     // 自动点击"See all details"按钮
     function clickSeeAllDetails() {
@@ -30,54 +37,55 @@
         }
     }
 
-    // 平滑滚动到指定元素
-    function smoothScrollToElement(element) {
-        if (!element) return;
-        
-        const targetPos = element.getBoundingClientRect().top + window.pageYOffset;
-        const startPos = window.pageYOffset;
-        const distance = targetPos - startPos;
-        const duration = 3000; // 3秒完成滚动
-        let startTime = null;
-        
-        function animation(currentTime) {
-            if (startTime === null) startTime = currentTime;
-            const timeElapsed = currentTime - startTime;
-            const progress = Math.min(timeElapsed / duration, 1);
-            const easeProgress = progress < 0.5 
-                ? 2 * progress * progress 
-                : 1 - Math.pow(-2 * progress + 2, 2) / 2; // 缓动函数
-            
-            window.scrollTo(0, startPos + distance * easeProgress);
-            
-            if (timeElapsed < duration) {
-                requestAnimationFrame(animation);
+    // 平滑滚动控制
+    function startAutoScroll() {
+        const exploreSection = document.querySelector('h2.MgLdDewB');
+        if (!exploreSection) {
+            console.log('未找到"Explore your interests"元素');
+            return;
+        }
+
+        const targetPos = exploreSection.getBoundingClientRect().top + window.pageYOffset;
+        let cyclesCompleted = 0;
+
+        function scrollDown() {
+            window.scrollTo({
+                top: targetPos,
+                behavior: 'smooth'
+            });
+            console.log(`向下滚动到目标区域 (${cyclesCompleted + 1}/${config.scrollCycles})`);
+
+            setTimeout(() => {
+                scrollUp();
+            }, config.scrollDuration + config.pauseDuration);
+        }
+
+        function scrollUp() {
+            window.scrollTo({
+                top: 0,
+                behavior: 'smooth'
+            });
+            console.log(`向上滚动回顶端 (${cyclesCompleted + 1}/${config.scrollCycles})`);
+
+            cyclesCompleted++;
+            if (cyclesCompleted < config.scrollCycles) {
+                setTimeout(() => {
+                    scrollDown();
+                }, config.scrollDuration + config.pauseDuration);
+            } else {
+                console.log('滚动完成，最终停留在顶部');
             }
         }
-        
-        requestAnimationFrame(animation);
+
+        scrollDown();
     }
 
-    // 执行所有操作
-    function executeAll() {
-        clickSeeAllDetails();
-        clickSeeMore();
-        
-        const exploreSection = document.querySelector('h2.MgLdDewB');
-        if (exploreSection) {
-            setTimeout(() => {
-                smoothScrollToElement(exploreSection);
-                console.log('开始平滑滚动到"Explore your interests"区域');
-            }, 1000); // 1秒延迟后开始滚动
-        }
-    }
+    // 立即执行点击操作
+    clickSeeAllDetails();
+    clickSeeMore();
 
-    // 等待页面加载完成后执行
-    if (document.readyState === 'complete') {
-        executeAll();
-    } else {
-        window.addEventListener('load', executeAll);
-    }
+    // 延迟启动滚动以确保页面稳定
+    setTimeout(startAutoScroll, 1000);
 
     // 监听动态加载的内容
     const observer = new MutationObserver(function(mutations) {
